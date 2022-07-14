@@ -1,64 +1,76 @@
-
+using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.Reflection;
+using System.Text;
+using AutoMapper;
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNet.OData.Builder;
+using Microsoft.AspNet.OData.Extensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using AutoMapper;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNet.OData.Builder;
-using Microsoft.AspNet.OData.Extensions;
 using Microsoft.OData.Edm;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Helper;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using MediatR;
-using System.Reflection;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Domain.Entities;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Infrastructure.Repositories;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Queries;
-using System;
 using Microsoft.OpenApi.Models;
 using OData.Swagger.Services;
-using System.Collections.Generic;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Middlewares;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Exceptions;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Domain.Exceptions;
+using OSPeConTI.BackEndBase.BuildingBlocks.EventBus;
 using OSPeConTI.BackEndBase.BuildingBlocks.EventBus.Abstractions;
 using OSPeConTI.BackEndBase.BuildingBlocks.EventBusRabbitMQ;
-using Autofac;
-using Microsoft.Extensions.Logging;
-using OSPeConTI.BackEndBase.BuildingBlocks.EventBus;
-using RabbitMQ.Client;
-using Autofac.Extensions.DependencyInjection;
-using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.IntegrationEvents;
 using OSPeConTI.BackEndBase.BuildingBlocks.IntegrationEventLogEF;
 using OSPeConTI.BackEndBase.BuildingBlocks.IntegrationEventLogEF.Services;
-using System.Data.Common;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Exceptions;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Helper;
+using
+    OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.IntegrationEvents;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Middlewares;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application.Queries;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Domain.Entities;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Domain.Exceptions;
+using OSPeConTI.BackEndBase.Services.CatalogoMateriales.Infrastructure;
+using
+    OSPeConTI.BackEndBase.Services.CatalogoMateriales.Infrastructure.Repositories;
+using RabbitMQ.Client;
 
 namespace OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application
 {
     public class Startup
     {
         private readonly IWebHostEnvironment _env;
+
         public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
             Configuration = configuration;
 
             _env = env;
 
-            var builder = new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddEnvironmentVariables(); ;
+            var builder =
+                new ConfigurationBuilder()
+                    .SetBasePath(env.ContentRootPath)
+                    .AddEnvironmentVariables();
+
             if (_env.IsProduction())
             {
                 Console.WriteLine("--> Corriendo en Produccion");
-                builder.AddJsonFile("appSettings.production.json", optional: false, reloadOnChange: true);
+                builder
+                    .AddJsonFile("appSettings.production.json",
+                    optional: false,
+                    reloadOnChange: true);
             }
             else
             {
                 Console.WriteLine("--> Corriendo en Desarrollo");
-                builder.AddJsonFile("appSettings.development.json", optional: false, reloadOnChange: true);
+                builder
+                    .AddJsonFile("appSettings.development.json",
+                    optional: false,
+                    reloadOnChange: true);
             }
             this.Configuration = builder.Build();
         }
@@ -68,199 +80,334 @@ namespace OSPeConTI.BackEndBase.Services.CatalogoMateriales.Application
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-
-
             services.AddControllersWithViews().AddNewtonsoftJson();
             services.AddAuthorization();
             services.AddControllers();
-            services.AddSwaggerGen(c =>
-               {
-                   c.SwaggerDoc("v1", new OpenApiInfo { Title = "Materiales", Version = "v1" });
-               });
-            //services.AddOData();
-
-
-
-            var appSettingsSection = Configuration.GetSection("AppSettings");
-            services.Configure<AppSettings>(appSettingsSection);
-            var appSettings = appSettingsSection.Get<AppSettings>();
-            var key = Encoding.ASCII.GetBytes(appSettings.Secret);
-            services.AddAuthentication(x =>
-            {
-                x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(x =>
-            {
-                x.RequireHttpsMetadata = false;
-                x.SaveToken = true;
-                x.TokenValidationParameters = new TokenValidationParameters
+            services
+                .AddSwaggerGen(c =>
                 {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false
-                };
-            });
+                    c
+                        .SwaggerDoc("v1",
+                        new OpenApiInfo {
+                            Title = "Materiales",
+                            Version = "v1"
+                        });
+                });
 
-            services.AddAutoMapper(typeof(Startup));
+            services.AddAutoMapper(typeof (Startup));
             services.AddMediatR(Assembly.GetExecutingAssembly());
-            services.AddTransient(typeof(INotificationHandler<MaterialAgregadoRequested>), typeof(MaterialAgregadoHandler));
-            services.AddTransient(typeof(INotificationHandler<ClasificacionAgregadoRequested>), typeof(ClasificacionAgregadoHandler));
-
-            services.AddScoped(typeof(IClasificacionRepository), typeof(ClasificacionRepository));
-            services.AddScoped(typeof(IMaterialesRepository), typeof(MaterialesRepository));
-            services.AddScoped(typeof(ITipoMaterialRepository), typeof(TipoMaterialRepository));
-
-            services.AddScoped<IClasificacionesQueries>(conns => new ClasificacionesQueries(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddScoped<IMaterialesQueries>(conns => new MaterialesQueries(Configuration.GetConnectionString("DefaultConnection")));
-            services.AddScoped<ITipoMaterialesQueries>(conns => new TipoMaterialesQueries(Configuration.GetConnectionString("DefaultConnection")));
-
-            services.AddDbContext<CatalogoMaterialesContext>(opt =>
-            opt.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), b => b.MigrationsAssembly("Application")));
-
-            services.AddDbContext<IntegrationEventLogContext>(options =>
-                  {
-                      options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"),
-                                              sqlServerOptionsAction: sqlOptions =>
-                                              {
-                                                  sqlOptions.MigrationsAssembly("Infrastructure");
-                                                  //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                                  sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                              });
-                  });
-
-
             services.AddHttpClient();
             services.AddOdataSwaggerSupport();
-            services.AddTransient<MaterialModificadoIntegrationEventHandler>();
-            services.AddTransient<IMaterialIntegrationEventService, MaterialIntegrationEventService>();
-            services.AddEventBus(Configuration);
 
-            //services.AddOptions();
+            //Queries
+            services.AddQueries (Configuration);
+
+            // Base de Datos
+            services.AddDatabaseContext (Configuration);
+
+            //Eventos de Dominio
+            services.AddDomainEvents (Configuration);
+
+            //Base de datos de Log
+            services.AddIntegartionEventLog (Configuration);
+
+            // Authenticacion
+            services.AddAuthentication (Configuration);
+
+            // Eventos de Integracion
+            services.AddEventBus (Configuration);
         }
-
-
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-
-
-            Dictionary<Type, IResultError> exceptions = new Dictionary<Type, IResultError>();
-            exceptions.Add(typeof(IInvalidException), new InvalidResultError());
-            exceptions.Add(typeof(IForbiddenException), new ForbiddenResultError());
-            exceptions.Add(typeof(InvalidOperationException), new InvalidResultError());
-            exceptions.Add(typeof(INotFoundException), new NotFoundResultError());
-
-            app.UseMiddleware<ExceptionMiddleware>(exceptions);
-
-            if (env.IsDevelopment())
-            {
-
-                //app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "RegistroVisitas v1"));
-
-
-
-            }
-
-            //app.UseHttpsRedirection();
+            //configurar custom errors
+            ConfigureErrors (app);
 
             app.UseRouting();
 
-            app.UseCors(x => x
-               .AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader());
+            app
+                .UseCors(x =>
+                    x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
             app.UseAuthentication();
             app.UseAuthorization();
+            app
+                .UseEndpoints(endpoints =>
+                {
+                    endpoints.MapControllers();
+                });
+            if (env.IsDevelopment())
+            {
+                app.UseSwagger();
+                app
+                    .UseSwaggerUI(c =>
+                        c
+                            .SwaggerEndpoint("/swagger/v1/swagger.json",
+                            "RegistroVisitas v1"));
+            }
 
-
-            app.UseEndpoints(endpoints =>
-                       {
-                           endpoints.MapControllers();
-                           /* endpoints.Select().Filter().OrderBy().Count().MaxTop(100);
-                           endpoints.MapODataRoute("odata", "odata", GetEdmModel()); */
-                       });
-            ConfigureEventBus(app);
-
+            // Suscribirse a eventos de integacion
+            ConfigureEventBus (app);
         }
 
         private void ConfigureEventBus(IApplicationBuilder app)
         {
-            var eventBus = app.ApplicationServices.GetRequiredService<IEventBus>();
-
-            eventBus.Subscribe<MaterialModificadoIntegrationEvent, MaterialModificadoIntegrationEventHandler>();
-            //eventBus.Subscribe<OrderStartedIntegrationEvent, OrderStartedIntegrationEventHandler>();
+            var eventBus =
+                app.ApplicationServices.GetRequiredService<IEventBus>();
+            eventBus
+                .Subscribe
+                <MaterialModificadoIntegrationEvent,
+                    MaterialModificadoIntegrationEventHandler
+                >();
+            //eventBus.Subscribe<MaterialCreadoIntegrationEvent, MaterialCreadoIntegrationEventHandler>();
         }
+
+        private void ConfigureErrors(IApplicationBuilder app)
+        {
+            Dictionary<Type, IResultError> exceptions =
+                new Dictionary<Type, IResultError>();
+            exceptions
+                .Add(typeof (IInvalidException), new InvalidResultError());
+            exceptions
+                .Add(typeof (IForbiddenException), new ForbiddenResultError());
+            exceptions
+                .Add(typeof (InvalidOperationException),
+                new InvalidResultError());
+            exceptions
+                .Add(typeof (INotFoundException), new NotFoundResultError());
+
+            app.UseMiddleware<ExceptionMiddleware> (exceptions);
+        }
+
         private IEdmModel GetEdmModel()
         {
             var odataBuilder = new ODataConventionModelBuilder();
-            //odataBuilder.EntitySet<Usuario>("UsuarioQuery");
-
             return odataBuilder.GetEdmModel();
         }
     }
 
-
     static class CustomExtensionsMethods
     {
-        public static IServiceCollection AddEventBus(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection
+        AddQueries(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
         {
+            services
+                .AddScoped<IClasificacionesQueries>(conns =>
+                    new ClasificacionesQueries(configuration
+                            .GetConnectionString("DefaultConnection")));
+            services
+                .AddScoped<IMaterialesQueries>(conns =>
+                    new MaterialesQueries(configuration
+                            .GetConnectionString("DefaultConnection")));
+            services
+                .AddScoped<ITipoMaterialesQueries>(conns =>
+                    new TipoMaterialesQueries(configuration
+                            .GetConnectionString("DefaultConnection")));
+            return services;
+        }
 
-            services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
-                       sp => (DbConnection c) => new IntegrationEventLogService(c));
+        public static IServiceCollection
+        AddDatabaseContext(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
+        {
+            services
+                .AddDbContext<CatalogoMaterialesContext>(opt =>
+                    opt
+                        .UseSqlServer(configuration
+                            .GetConnectionString("DefaultConnection"),
+                        b => b.MigrationsAssembly("Application")));
 
-            services.AddSingleton<IRabbitMQPersistentConnection>(sp =>
-            {
-                var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
+            services
+                .AddScoped(typeof (IClasificacionRepository),
+                typeof (ClasificacionRepository));
+            services
+                .AddScoped(typeof (IMaterialesRepository),
+                typeof (MaterialesRepository));
+            services
+                .AddScoped(typeof (ITipoMaterialRepository),
+                typeof (TipoMaterialRepository));
+            return services;
+        }
 
+        public static IServiceCollection
+        AddDomainEvents(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
+        {
+            services
+                .AddTransient(typeof (
+                    INotificationHandler<MaterialAgregadoRequested>
+                ),
+                typeof (MaterialAgregadoHandler));
+            services
+                .AddTransient(typeof (
+                    INotificationHandler<ClasificacionAgregadoRequested>
+                ),
+                typeof (ClasificacionAgregadoHandler));
+            return services;
+        }
 
-                var factory = new ConnectionFactory()
+        public static IServiceCollection
+        AddIntegartionEventLog(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
+        {
+            services
+                .AddDbContext<IntegrationEventLogContext>(options =>
                 {
-                    HostName = configuration["EventBusConnection"],
-                    DispatchConsumersAsync = true
-                };
+                    options
+                        .UseSqlServer(configuration
+                            .GetConnectionString("DefaultConnection"),
+                        sqlServerOptionsAction: sqlOptions =>
+                        {
+                            sqlOptions.MigrationsAssembly("Infrastructure");
+                            sqlOptions
+                                .EnableRetryOnFailure(maxRetryCount: 15,
+                                maxRetryDelay: TimeSpan.FromSeconds(30),
+                                errorNumbersToAdd: null);
+                        });
+                });
+            return services;
+        }
 
-                if (!string.IsNullOrEmpty(configuration["EventBusUserName"]))
+        public static IServiceCollection
+        AddAuthentication(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
+        {
+            var appSettingsSection = configuration.GetSection("AppSettings");
+            services.Configure<AppSettings> (appSettingsSection);
+            var appSettings = appSettingsSection.Get<AppSettings>();
+            var key = Encoding.ASCII.GetBytes(appSettings.Secret);
+            services
+                .AddAuthentication(x =>
                 {
-                    factory.UserName = configuration["EventBusUserName"];
-                }
-
-                if (!string.IsNullOrEmpty(configuration["EventBusPassword"]))
+                    x.DefaultAuthenticateScheme =
+                        JwtBearerDefaults.AuthenticationScheme;
+                    x.DefaultChallengeScheme =
+                        JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(x =>
                 {
-                    factory.Password = configuration["EventBusPassword"];
-                }
+                    x.RequireHttpsMetadata = false;
+                    x.SaveToken = true;
+                    x.TokenValidationParameters =
+                        new TokenValidationParameters {
+                            ValidateIssuerSigningKey = true,
+                            IssuerSigningKey = new SymmetricSecurityKey(key),
+                            ValidateIssuer = false,
+                            ValidateAudience = false
+                        };
+                });
+            return services;
+        }
 
-                var retryCount = 5;
-                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
+        public static IServiceCollection
+        AddEventBus(
+            this IServiceCollection services,
+            IConfiguration configuration
+        )
+        {
+            //services.AddTransient<MaterialCreadoIntegrationEventHandler>();
+            services.AddTransient<MaterialModificadoIntegrationEventHandler>();
+            services
+                .AddTransient
+                <IMaterialIntegrationEventService,
+                    MaterialIntegrationEventService
+                >();
+
+            services
+                .AddTransient
+                <Func<DbConnection, IIntegrationEventLogService>>(sp =>
+                    (DbConnection c) => new IntegrationEventLogService(c));
+
+            services
+                .AddSingleton<IRabbitMQPersistentConnection>(sp =>
                 {
-                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
-                }
+                    var logger =
+                        sp
+                            .GetRequiredService
+                            <ILogger<DefaultRabbitMQPersistentConnection>>();
 
-                return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
-            });
-            services.AddSingleton<IEventBus, EventBusRabbitMQ>(sp =>
-            {
-                var subscriptionClientName = configuration["SubscriptionClientName"];
-                var rabbitMQPersistentConnection = sp.GetRequiredService<IRabbitMQPersistentConnection>();
-                ILifetimeScope iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-                var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
-                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+                    var factory =
+                        new ConnectionFactory()
+                        {
+                            HostName = configuration["EventBusConnection"],
+                            DispatchConsumersAsync = true
+                        };
 
-                var retryCount = 5;
-                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"]))
+                    if (!string.IsNullOrEmpty(configuration["EventBusUserName"])
+                    )
+                    {
+                        factory.UserName = configuration["EventBusUserName"];
+                    }
+
+                    if (!string.IsNullOrEmpty(configuration["EventBusPassword"])
+                    )
+                    {
+                        factory.Password = configuration["EventBusPassword"];
+                    }
+
+                    var retryCount = 5;
+                    if (
+                        !string
+                            .IsNullOrEmpty(configuration["EventBusRetryCount"])
+                    )
+                    {
+                        retryCount =
+                            int.Parse(configuration["EventBusRetryCount"]);
+                    }
+
+                    return new DefaultRabbitMQPersistentConnection(factory,
+                        logger,
+                        retryCount);
+                });
+            services
+                .AddSingleton<IEventBus, EventBusRabbitMQ>(sp =>
                 {
-                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
-                }
+                    var subscriptionClientName =
+                        configuration["SubscriptionClientName"];
+                    var rabbitMQPersistentConnection =
+                        sp.GetRequiredService<IRabbitMQPersistentConnection>();
+                    ILifetimeScope iLifetimeScope =
+                        sp.GetRequiredService<ILifetimeScope>();
+                    var logger =
+                        sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
+                    var eventBusSubcriptionsManager =
+                        sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
-                return new EventBusRabbitMQ(rabbitMQPersistentConnection, logger, iLifetimeScope, eventBusSubcriptionsManager, subscriptionClientName, retryCount);
-            });
+                    var retryCount = 5;
+                    if (
+                        !string
+                            .IsNullOrEmpty(configuration["EventBusRetryCount"])
+                    )
+                    {
+                        retryCount =
+                            int.Parse(configuration["EventBusRetryCount"]);
+                    }
 
-            services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
+                    return new EventBusRabbitMQ(rabbitMQPersistentConnection,
+                        logger,
+                        iLifetimeScope,
+                        eventBusSubcriptionsManager,
+                        subscriptionClientName,
+                        retryCount);
+                });
+
+            services
+                .AddSingleton
+                <IEventBusSubscriptionsManager,
+                    InMemoryEventBusSubscriptionsManager
+                >();
 
             return services;
         }
