@@ -17,7 +17,7 @@ namespace OSPeConTI.SumariosIERIC.Domain.Entities
         public bool EsCooperativa { get; private set; }
         public bool EstadoActivo { get; private set; }
 
-        public Empresa() { }
+        private Empresa() { }
         public Empresa(Cuit cuit, string razonSocial, bool esCooperativa)
         {
             Cuit = cuit;

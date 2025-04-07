@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>OSPeConTI.SumariosIERIC.BuildingBlocks.IntegrationEventLogEF</RootNamespace>
   </PropertyGroup>
 
@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
-    </PackageReference>    
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
